@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">ExaFree</h1>
 <p align="center">
-  <strong>简体中文</strong> | <a href="docs/README_EN.md">English</a>
+  <strong>简体中文</strong>
 </p>
 <p align="center">
   Exa API 代理与管理面板，支持多账号、用户级 API Key、Linux DO OAuth 登录/注册。
