@@ -145,7 +145,6 @@ class ExaAutomation:
         page.fill('input[placeholder="Enter verification code"]', code)
         page.locator('button:has-text("VERIFY CODE")').first.click()
 
-        invalid_tip = page.locator('text="Invalid verification code."')
         # 某些会话为 SPA 跳转，不触发 commit/load，直接等 wait_for_url 会卡住到超时。
         # 这里改为短轮询 URL，尽快识别是否已进入 dashboard 域名。
         entered_dashboard = False
@@ -157,7 +156,7 @@ class ExaAutomation:
             if self._get_url_host(current_url) == "dashboard.exa.ai":
                 entered_dashboard = True
                 break
-            if invalid_tip.count() and invalid_tip.first.is_visible():
+            if self._is_otp_invalid_tip_visible(page):
                 raise RuntimeError("OTP 无效，Exa 返回 Invalid verification code")
             try:
                 page.wait_for_load_state("domcontentloaded", timeout=1200)
@@ -167,7 +166,7 @@ class ExaAutomation:
 
         if not entered_dashboard:
             current_url = page.url
-            if invalid_tip.count() and invalid_tip.first.is_visible():
+            if self._is_otp_invalid_tip_visible(page):
                 raise RuntimeError("OTP 无效，Exa 返回 Invalid verification code")
             # 若仍停留在 auth.exa.ai，尝试手动打开 dashboard 触发会话写入
             if self._get_url_host(current_url) == "auth.exa.ai":
@@ -188,7 +187,7 @@ class ExaAutomation:
         if otp_wait_cost > 8:
             self._log("warning", f"⚠️ OTP 跳转耗时较长: {otp_wait_cost:.1f}s，当前页面: {page.url}")
 
-        if invalid_tip.count() and invalid_tip.first.is_visible():
+        if self._is_otp_invalid_tip_visible(page):
             raise RuntimeError("OTP 无效，Exa 返回 Invalid verification code")
 
         self._log("info", f"✅ OTP 提交后已进入: {page.url}")
@@ -458,6 +457,18 @@ class ExaAutomation:
     def _extract_balance(text: str) -> Optional[str]:
         m = re.search(r"Remaining Balance\s*\$([0-9][0-9,]*(?:\.[0-9]{2})?)", text or "", flags=re.I)
         return m.group(1) if m else None
+
+    @staticmethod
+    def _is_otp_invalid_tip_visible(page) -> bool:
+        """
+        OTP 提交后页面可能正在跳转，旧 execution context 会被销毁。
+        这里每次重建 locator 并吞掉瞬时异常，避免误中断自动化流程。
+        """
+        try:
+            tip = page.locator('text="Invalid verification code."').first
+            return tip.count() > 0 and tip.is_visible()
+        except Exception:
+            return False
 
     @staticmethod
     def _click_if_visible(page, selector: str) -> bool:
